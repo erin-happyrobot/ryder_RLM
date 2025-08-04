@@ -6,6 +6,11 @@ import os
 from dotenv import load_dotenv
 from typing import Optional, Dict
 import json
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
@@ -109,6 +114,7 @@ def transform_consent_datetime(datetime_string: str) -> str:
 @app.get("/")
 async def root():
     """Health check endpoint"""
+    logger.info("Health check endpoint hit")
     return {"message": "RLM API Server is running"}
 
 @app.post("/schedule-appointment", response_model=ScheduleResponse)
@@ -116,15 +122,21 @@ async def schedule_appointment(request: ScheduleRequest):
     """
     Make a POST request to the RLM API endpoint for AI Schedule Confirmation
     """
+    logger.info(f"Schedule appointment request received")
+    logger.info(f"Schedule Date: {request.scheduledDate}")
+    logger.info(f"Client Order Number: {request.clientOrderNumber}")
+    logger.info(f"Client Code: {request.clientCode}")
+    
     # API endpoint
     url = "https://apiqa.ryder.com/rlm/ryderview/capacitymanagement/api/ScheduleAppointment/AIScheduleConfirmation"
     
     # Get header from environment variable
     api_header_value = os.getenv("API_HEADER_VALUE")
     if not api_header_value:
+        logger.error("API_HEADER_VALUE not found in environment variables")
         raise HTTPException(
             status_code=500, 
-            detail="API_HEADER_KEY not found in environment variables. Please check your .env file."
+            detail="API_HEADER_VALUE not found in environment variables. Please check your .env file."
         )
     
     # Prepare headers (using subscription key instead of Authorization)
@@ -135,6 +147,7 @@ async def schedule_appointment(request: ScheduleRequest):
     
     # Transform questions from dict to required format
     transformed_questions = transform_questions(request.questions)
+    logger.info(f"Transformed {len(transformed_questions)} questions")
     
     # Prepare request body using values from incoming payload
     payload = {
@@ -148,9 +161,13 @@ async def schedule_appointment(request: ScheduleRequest):
         "questions": transformed_questions
     }
     
+    logger.info(f"Final payload scheduled date: {payload['scheduledDate']}")
+    logger.info(f"Making request to RLM API")
+    
     try:
         # Make the POST request
         response = requests.post(url, json=payload, headers=headers, timeout=30)
+        logger.info(f"RLM API response status: {response.status_code}")
         
         # Parse response
         response_data = None
@@ -159,14 +176,18 @@ async def schedule_appointment(request: ScheduleRequest):
         except json.JSONDecodeError:
             response_data = {"raw_response": response.text}
         
-        return ScheduleResponse(
+        result = ScheduleResponse(
             success=response.status_code == 200,
             status_code=response.status_code,
             response_data=response_data,
             error_message=None if response.status_code == 200 else f"HTTP {response.status_code}: {response.text}"
         )
         
+        logger.info(f"Returning response: success={result.success}, status={result.status_code}")
+        return result
+        
     except RequestException as e:
+        logger.error(f"Request exception: {str(e)}")
         raise HTTPException(
             status_code=500,
             detail=f"Error making request to RLM API: {str(e)}"
