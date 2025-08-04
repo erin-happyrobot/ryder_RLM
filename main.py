@@ -53,6 +53,12 @@ class ScheduleResponse(BaseModel):
     response_data: Optional[dict] = None
     error_message: Optional[str] = None
 
+def handle_null_or_empty(value: str, default: str = "") -> str:
+    """Handle null, empty, or string 'null' values"""
+    if not value or value.strip() == "" or value.lower() in ["null", "none"]:
+        return default
+    return value
+
 def transform_questions(questions_json_string: str) -> list:
     """Transform JSON string of questions to required API format"""
     # Handle null or empty questions
@@ -82,7 +88,8 @@ def transform_questions(questions_json_string: str) -> list:
 
 def transform_ai_consent(consent_value: str) -> str:
     """Transform string consent to "true" or "false" string"""
-    if consent_value.lower() in ['true', 'yes', '1', 'y']:
+    cleaned_value = handle_null_or_empty(consent_value, "false")
+    if cleaned_value.lower() in ['true', 'yes', '1', 'y']:
         return "true"
     else:
         return "false"
@@ -92,21 +99,22 @@ def transform_consent_datetime(datetime_string: str) -> str:
     from datetime import datetime
     import re
     
-    # Handle null, empty, or "null" cases
-    if not datetime_string or datetime_string.strip() == "" or datetime_string.lower() == "null":
+    # Handle null, empty, or "null" cases using the helper function
+    cleaned_datetime = handle_null_or_empty(datetime_string, "")
+    if cleaned_datetime == "":
         # Return current datetime in ISO format as default
         return datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
     
     # If it's already in ISO format, return as is
     iso_pattern = r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$'
-    if re.match(iso_pattern, datetime_string):
-        return datetime_string
+    if re.match(iso_pattern, cleaned_datetime):
+        return cleaned_datetime
     
     # Try to parse common formats and convert to ISO
     try:
         # Handle format like "Monday, August 4, 2025 4:50:15 AM EDT"
         # Remove day name and timezone
-        cleaned = re.sub(r'^[A-Za-z]+,\s*', '', datetime_string)  # Remove "Monday, "
+        cleaned = re.sub(r'^[A-Za-z]+,\s*', '', cleaned_datetime)  # Remove "Monday, "
         cleaned = re.sub(r'\s+[A-Z]{3,4}$', '', cleaned)  # Remove " EDT"
         
         # Parse and format to ISO
@@ -115,7 +123,7 @@ def transform_consent_datetime(datetime_string: str) -> str:
     except:
         # If parsing fails, try other common formats
         try:
-            dt = datetime.fromisoformat(datetime_string.replace('Z', '+00:00'))
+            dt = datetime.fromisoformat(cleaned_datetime.replace('Z', '+00:00'))
             return dt.strftime('%Y-%m-%dT%H:%M:%S')
         except:
             # Default fallback to current datetime
@@ -153,11 +161,11 @@ async def schedule_appointment(request: ScheduleRequest):
     
     # Prepare request body using values from incoming payload
     payload = {
-        "clientCode": request.clientCode,
-        "clientOrderNumber": request.clientOrderNumber,
-        "scheduledDate": request.scheduledDate,
-        "consigneeName": request.consigneeName,
-        "phoneNumber": request.phoneNumber,
+        "clientCode": handle_null_or_empty(request.clientCode, ""),
+        "clientOrderNumber": handle_null_or_empty(request.clientOrderNumber, ""),
+        "scheduledDate": handle_null_or_empty(request.scheduledDate, ""),
+        "consigneeName": handle_null_or_empty(request.consigneeName, ""),
+        "phoneNumber": handle_null_or_empty(request.phoneNumber, ""),
         "aiConsent": transform_ai_consent(request.aiConsent),
         "consentDateTime": transform_consent_datetime(request.consentDateTime),
         "questions": transformed_questions
