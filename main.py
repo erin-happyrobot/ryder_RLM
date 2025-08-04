@@ -203,7 +203,8 @@ async def schedule_appointment(request: ScheduleRequest):
         "questions": transformed_questions
     }
     
-    logger.info(f"Final payload scheduled date: {payload['scheduledDate']}")
+    logger.info(f"Final payload scheduled date (date only, no time): {payload['scheduledDate']}")
+    logger.info(f"Final payload consent datetime (with time): {payload['consentDateTime']}")
     logger.info(f"Making request to RLM API")
     
     try:
