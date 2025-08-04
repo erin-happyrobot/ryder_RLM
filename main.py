@@ -1,0 +1,143 @@
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+import requests
+from requests.exceptions import RequestException
+import os
+from dotenv import load_dotenv
+from typing import Optional
+import json
+
+# Load environment variables
+load_dotenv()
+
+app = FastAPI(title="RLM API Server", description="FastAPI server for RLM capacity management")
+
+# Pydantic models for request/response
+class ScheduleRequest(BaseModel):
+    clientCode: str
+    clientOrderNumber: str
+    scheduledDate: str
+    consigneeName: str
+    phoneNumber: str
+    aiConsent: str
+    consentDateTime: str
+    questions: str
+
+class ScheduleResponse(BaseModel):
+    success: bool
+    status_code: int
+    response_data: Optional[dict] = None
+    error_message: Optional[str] = None
+
+@app.get("/")
+async def root():
+    """Health check endpoint"""
+    return {"message": "RLM API Server is running"}
+
+@app.post("/schedule-appointment", response_model=ScheduleResponse)
+async def schedule_appointment(request: ScheduleRequest):
+    """
+    Make a POST request to the RLM API endpoint for AI Schedule Confirmation
+    """
+    # API endpoint
+    url = "https://apiqa.ryder.com/rlm/ryderview/capacitymanagement/api/ScheduleAppointment/AIScheduleConfirmation"
+    
+    # Get header from environment variable
+    api_header_value = os.getenv("API_HEADER_KEY")
+    if not api_header_value:
+        raise HTTPException(
+            status_code=500, 
+            detail="API_HEADER_KEY not found in environment variables. Please check your .env file."
+        )
+    
+    # Prepare headers (assuming it's an Authorization header, but you can modify as needed)
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": api_header_value,  # Modify this header name as needed
+    }
+    
+    # Prepare request body using values from incoming payload
+    payload = {
+        "clientCode": request.clientCode,
+        "clientOrderNumber": request.clientOrderNumber,
+        "scheduledDate": request.scheduledDate,
+        "consigneeName": request.consigneeName,
+        "phoneNumber": request.phoneNumber,
+        "aiConsent": request.aiConsent,
+        "consentDateTime": request.consentDateTime,
+        "questions": request.questions
+    }
+    
+    try:
+        # Make the POST request
+        response = requests.post(url, json=payload, headers=headers, timeout=30)
+        
+        # Parse response
+        response_data = None
+        try:
+            response_data = response.json()
+        except json.JSONDecodeError:
+            response_data = {"raw_response": response.text}
+        
+        return ScheduleResponse(
+            success=response.status_code == 200,
+            status_code=response.status_code,
+            response_data=response_data,
+            error_message=None if response.status_code == 200 else f"HTTP {response.status_code}: {response.text}"
+        )
+        
+    except RequestException as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error making request to RLM API: {str(e)}"
+        )
+
+@app.post("/schedule-appointment-custom")
+async def schedule_appointment_custom(payload: dict):
+    """
+    Make a POST request with custom payload to the RLM API endpoint
+    """
+    # API endpoint
+    url = "https://apiqa.ryder.com/rlm/ryderview/capacitymanagement/api/ScheduleAppointment/AIScheduleConfirmation"
+    
+    # Get header from environment variable
+    api_header_value = os.getenv("API_HEADER_KEY")
+    if not api_header_value:
+        raise HTTPException(
+            status_code=500, 
+            detail="API_HEADER_KEY not found in environment variables. Please check your .env file."
+        )
+    
+    # Prepare headers
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": api_header_value,  # Modify this header name as needed
+    }
+    
+    try:
+        # Make the POST request
+        response = requests.post(url, json=payload, headers=headers, timeout=30)
+        
+        # Parse response
+        response_data = None
+        try:
+            response_data = response.json()
+        except json.JSONDecodeError:
+            response_data = {"raw_response": response.text}
+        
+        return ScheduleResponse(
+            success=response.status_code == 200,
+            status_code=response.status_code,
+            response_data=response_data,
+            error_message=None if response.status_code == 200 else f"HTTP {response.status_code}: {response.text}"
+        )
+        
+    except RequestException as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error making request to RLM API: {str(e)}"
+        )
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000) 
