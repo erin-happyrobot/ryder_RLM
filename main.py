@@ -131,6 +131,23 @@ def transform_schedule_date(date_string: str) -> str:
         logger.info(f"Schedule date already in correct format: '{cleaned_date}'")
         return cleaned_date
     
+    # Check if it's a datetime string and extract just the date part
+    datetime_patterns = [
+        r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z?$',  # ISO datetime with optional Z
+        r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z?$',  # ISO datetime with milliseconds
+        r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$'  # Space-separated datetime
+    ]
+    
+    for pattern in datetime_patterns:
+        if re.match(pattern, cleaned_date):
+            try:
+                # Extract just the date part (first 10 characters for YYYY-MM-DD)
+                date_part = cleaned_date[:10]
+                logger.info(f"Extracted date part from datetime '{cleaned_date}' to '{date_part}'")
+                return date_part
+            except:
+                continue
+    
     # Try to parse common date formats
     try:
         # Try various date formats
