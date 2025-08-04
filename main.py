@@ -12,30 +12,6 @@ load_dotenv()
 
 app = FastAPI(title="RLM API Server", description="FastAPI server for RLM capacity management")
 
-# Static question mapping
-QUESTION_MAPPING = {
-    "1": {
-        "questionDescription": "Is this delivery being made within a gated community, a military installation, or any location with controlled or limited access?",
-        "questionId": 1
-    },
-    "2": {
-        "questionDescription": "If your order is set for Deluxe, White Glove, or Room of Choice service level, will the delivery team be going up or down MORE THAN 2 flights of stairs?  If you have any other service level please respond No as stairs will not apply.",
-        "questionId": 2
-    },
-    "3": {
-        "questionDescription": "Do you reside in a building or complex that requires a Certificate of Insurance for deliveries?",
-        "questionId": 3
-    },
-    "4": {
-        "questionDescription": "Are there any obstacles or tight turns that would require more than a 2-man team to complete your delivery?.",
-        "questionId": 4
-    },
-    "5": {
-        "questionDescription": "Does your order require an exchange of merchandise where we would be both delivering and picking up product from your home?",
-        "questionId": 5
-    }
-}
-
 # Pydantic models for request/response
 class ScheduleRequest(BaseModel):
     clientCode: str
@@ -63,27 +39,28 @@ def transform_questions(questions_json_string: str) -> list:
     """Transform JSON string of questions to required API format"""
     # Handle null or empty questions
     if not questions_json_string or questions_json_string.strip() == "":
-        questions_dict = {}
+        return []  # Return empty list if no questions provided
     else:
         try:
             questions_dict = json.loads(questions_json_string)
         except json.JSONDecodeError:
-            questions_dict = {}
+            return []  # Return empty list if JSON parsing fails
     
-    # If questions_dict is empty, create entries for all questions with "NA"
+    # If questions_dict is empty, return empty list
     if not questions_dict:
-        questions_dict = {"1": "NA", "2": "NA", "3": "NA", "4": "NA", "5": "NA"}
+        return []
     
     transformed = []
-    for key, response in questions_dict.items():
-        if key in QUESTION_MAPPING:
-            # Use "NA" if response is empty or null
-            final_response = response if response else "NA"
-            transformed.append({
-                "questionDescription": QUESTION_MAPPING[key]["questionDescription"],
-                "questionId": QUESTION_MAPPING[key]["questionId"],
-                "questionResponse": final_response.lower()
-            })
+    question_id = 1  # Start with ID 1 and increment
+    for question_text, response in questions_dict.items():
+        # Use "na" if response is empty or null
+        final_response = response if response else "na"
+        transformed.append({
+            "questionDescription": question_text,
+            "questionId": question_id,
+            "questionResponse": final_response.lower()
+        })
+        question_id += 1  # Increment for next question
     return transformed
 
 def transform_ai_consent(consent_value: str) -> str:
