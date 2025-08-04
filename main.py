@@ -4,13 +4,37 @@ import requests
 from requests.exceptions import RequestException
 import os
 from dotenv import load_dotenv
-from typing import Optional
+from typing import Optional, Dict
 import json
 
 # Load environment variables
 load_dotenv()
 
 app = FastAPI(title="RLM API Server", description="FastAPI server for RLM capacity management")
+
+# Static question mapping
+QUESTION_MAPPING = {
+    "1": {
+        "questionDescription": "Is this delivery being made within a gated community, a military installation, or any location with controlled or limited access?",
+        "questionId": 1
+    },
+    "2": {
+        "questionDescription": "If your order is set for Deluxe, White Glove, or Room of Choice service level, will the delivery team be going up or down MORE THAN 2 flights of stairs?  If you have any other service level please respond No as stairs will not apply.",
+        "questionId": 2
+    },
+    "3": {
+        "questionDescription": "Do you reside in a building or complex that requires a Certificate of Insurance for deliveries?",
+        "questionId": 3
+    },
+    "4": {
+        "questionDescription": "Are there any obstacles or tight turns that would require more than a 2-man team to complete your delivery?.",
+        "questionId": 4
+    },
+    "5": {
+        "questionDescription": "Does your order require an exchange of merchandise where we would be both delivering and picking up product from your home?",
+        "questionId": 5
+    }
+}
 
 # Pydantic models for request/response
 class ScheduleRequest(BaseModel):
@@ -21,13 +45,25 @@ class ScheduleRequest(BaseModel):
     phoneNumber: str
     aiConsent: str
     consentDateTime: str
-    questions: str
+    questions: Dict[str, str]  # Dictionary of question keys to Y/N responses
 
 class ScheduleResponse(BaseModel):
     success: bool
     status_code: int
     response_data: Optional[dict] = None
     error_message: Optional[str] = None
+
+def transform_questions(questions_dict: Dict[str, str]) -> list:
+    """Transform dictionary of questions to required API format"""
+    transformed = []
+    for key, response in questions_dict.items():
+        if key in QUESTION_MAPPING:
+            transformed.append({
+                "questionDescription": QUESTION_MAPPING[key]["questionDescription"],
+                "questionId": QUESTION_MAPPING[key]["questionId"],
+                "questionResponse": response.lower()
+            })
+    return transformed
 
 @app.get("/")
 async def root():
@@ -56,6 +92,9 @@ async def schedule_appointment(request: ScheduleRequest):
         "Ocp-Apim-Subscription-Key": api_header_value,  # Common subscription key header name
     }
     
+    # Transform questions from dict to required format
+    transformed_questions = transform_questions(request.questions)
+    
     # Prepare request body using values from incoming payload
     payload = {
         "clientCode": request.clientCode,
@@ -65,7 +104,7 @@ async def schedule_appointment(request: ScheduleRequest):
         "phoneNumber": request.phoneNumber,
         "aiConsent": request.aiConsent,
         "consentDateTime": request.consentDateTime,
-        "questions": request.questions
+        "questions": transformed_questions
     }
     
     try:
