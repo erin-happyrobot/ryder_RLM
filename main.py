@@ -77,7 +77,7 @@ def transform_ai_consent(consent_value: str) -> str:
         return "false"
 
 def transform_consent_datetime(datetime_string: str) -> str:
-    """Transform datetime string to ISO format"""
+    """Transform datetime string to ISO format YYYY-MM-DDTHH:MM:SS"""
     from datetime import datetime
     import re
     
@@ -87,7 +87,7 @@ def transform_consent_datetime(datetime_string: str) -> str:
         # Return current datetime in ISO format as default
         return datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
     
-    # If it's already in ISO format, return as is
+    # If it's already in correct ISO format, return as is
     iso_pattern = r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$'
     if re.match(iso_pattern, cleaned_datetime):
         return cleaned_datetime
@@ -110,6 +110,38 @@ def transform_consent_datetime(datetime_string: str) -> str:
         except:
             # Default fallback to current datetime
             return datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
+
+def transform_schedule_date(date_string: str) -> str:
+    """Transform date string to YYYY-MM-DD format"""
+    from datetime import datetime
+    import re
+    
+    # Handle null, empty, or "null" cases
+    cleaned_date = handle_null_or_empty(date_string, "")
+    if cleaned_date == "":
+        # Return current date as default
+        return datetime.now().strftime('%Y-%m-%d')
+    
+    # If it's already in correct format, return as is
+    date_pattern = r'^\d{4}-\d{2}-\d{2}$'
+    if re.match(date_pattern, cleaned_date):
+        return cleaned_date
+    
+    # Try to parse common date formats
+    try:
+        # Try various date formats
+        for fmt in ['%Y-%m-%d', '%m/%d/%Y', '%d/%m/%Y', '%Y/%m/%d', '%B %d, %Y', '%d %B %Y']:
+            try:
+                dt = datetime.strptime(cleaned_date, fmt)
+                return dt.strftime('%Y-%m-%d')
+            except ValueError:
+                continue
+        
+        # If no format worked, return current date
+        return datetime.now().strftime('%Y-%m-%d')
+    except:
+        # Default fallback to current date
+        return datetime.now().strftime('%Y-%m-%d')
 
 @app.get("/")
 async def root():
@@ -153,7 +185,7 @@ async def schedule_appointment(request: ScheduleRequest):
     payload = {
         "clientCode": handle_null_or_empty(request.clientCode, ""),
         "clientOrderNumber": handle_null_or_empty(request.clientOrderNumber, ""),
-        "scheduledDate": handle_null_or_empty(request.scheduledDate, ""),
+        "scheduledDate": transform_schedule_date(request.scheduledDate),
         "consigneeName": handle_null_or_empty(request.consigneeName, ""),
         "phoneNumber": handle_null_or_empty(request.phoneNumber, ""),
         "aiConsent": transform_ai_consent(request.aiConsent),
