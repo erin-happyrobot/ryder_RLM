@@ -45,7 +45,7 @@ class ScheduleRequest(BaseModel):
     phoneNumber: str
     aiConsent: str
     consentDateTime: str
-    questions: Dict[str, str]  # Dictionary of question keys to Y/N responses
+    questions_and_answers: str  # JSON string of question numbers to Y/N responses
 
 class ScheduleResponse(BaseModel):
     success: bool
@@ -53,8 +53,13 @@ class ScheduleResponse(BaseModel):
     response_data: Optional[dict] = None
     error_message: Optional[str] = None
 
-def transform_questions(questions_dict: Dict[str, str]) -> list:
-    """Transform dictionary of questions to required API format"""
+def transform_questions(questions_json_string: str) -> list:
+    """Transform JSON string of questions to required API format"""
+    try:
+        questions_dict = json.loads(questions_json_string)
+    except json.JSONDecodeError:
+        return []
+    
     transformed = []
     for key, response in questions_dict.items():
         if key in QUESTION_MAPPING:
@@ -93,7 +98,7 @@ async def schedule_appointment(request: ScheduleRequest):
     }
     
     # Transform questions from dict to required format
-    transformed_questions = transform_questions(request.questions)
+    transformed_questions = transform_questions(request.questions_and_answers)
     
     # Prepare request body using values from incoming payload
     payload = {
