@@ -79,7 +79,7 @@ async def schedule_appointment(request: ScheduleRequest):
     url = "https://apiqa.ryder.com/rlm/ryderview/capacitymanagement/api/ScheduleAppointment/AIScheduleConfirmation"
     
     # Get header from environment variable
-    api_header_value = os.getenv("API_HEADER_KEY")
+    api_header_value = os.getenv("API_HEADER_VALUE")
     if not api_header_value:
         raise HTTPException(
             status_code=500, 
