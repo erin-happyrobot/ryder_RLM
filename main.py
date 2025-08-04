@@ -70,6 +70,42 @@ def transform_questions(questions_json_string: str) -> list:
             })
     return transformed
 
+def transform_ai_consent(consent_value: str) -> str:
+    """Transform string consent to "true" or "false" string"""
+    if consent_value.lower() in ['true', 'yes', '1', 'y']:
+        return "true"
+    else:
+        return "false"
+
+def transform_consent_datetime(datetime_string: str) -> str:
+    """Transform datetime string to ISO format"""
+    from datetime import datetime
+    import re
+    
+    # If it's already in ISO format, return as is
+    iso_pattern = r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$'
+    if re.match(iso_pattern, datetime_string):
+        return datetime_string
+    
+    # Try to parse common formats and convert to ISO
+    try:
+        # Handle format like "Monday, August 4, 2025 4:50:15 AM EDT"
+        # Remove day name and timezone
+        cleaned = re.sub(r'^[A-Za-z]+,\s*', '', datetime_string)  # Remove "Monday, "
+        cleaned = re.sub(r'\s+[A-Z]{3,4}$', '', cleaned)  # Remove " EDT"
+        
+        # Parse and format to ISO
+        dt = datetime.strptime(cleaned, '%B %d, %Y %I:%M:%S %p')
+        return dt.strftime('%Y-%m-%dT%H:%M:%S')
+    except:
+        # If parsing fails, try other common formats
+        try:
+            dt = datetime.fromisoformat(datetime_string.replace('Z', '+00:00'))
+            return dt.strftime('%Y-%m-%dT%H:%M:%S')
+        except:
+            # Default fallback
+            return datetime_string
+
 @app.get("/")
 async def root():
     """Health check endpoint"""
@@ -107,8 +143,8 @@ async def schedule_appointment(request: ScheduleRequest):
         "scheduledDate": request.scheduledDate,
         "consigneeName": request.consigneeName,
         "phoneNumber": request.phoneNumber,
-        "aiConsent": request.aiConsent,
-        "consentDateTime": request.consentDateTime,
+        "aiConsent": transform_ai_consent(request.aiConsent),
+        "consentDateTime": transform_consent_datetime(request.consentDateTime),
         "questions": transformed_questions
     }
     
