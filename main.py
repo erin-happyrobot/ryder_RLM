@@ -176,18 +176,29 @@ async def schedule_appointment(request: ScheduleRequest):
         except json.JSONDecodeError:
             response_data = {"raw_response": response.text}
         
+        # Determine if request was successful
+        is_successful = response.status_code == 200
+        
+        if is_successful:
+            logger.info("✅ REQUEST SUCCESSFUL - RLM API returned 200")
+            logger.info(f"Success response data: {response_data}")
+        else:
+            logger.error(f"❌ REQUEST FAILED - RLM API returned {response.status_code}")
+            logger.error(f"Error response data: {response_data}")
+            logger.error(f"Error response text: {response.text}")
+        
         result = ScheduleResponse(
-            success=response.status_code == 200,
+            success=is_successful,
             status_code=response.status_code,
             response_data=response_data,
-            error_message=None if response.status_code == 200 else f"HTTP {response.status_code}: {response.text}"
+            error_message=None if is_successful else f"HTTP {response.status_code}: {response.text}"
         )
         
-        logger.info(f"Returning response: success={result.success}, status={result.status_code}")
+        logger.info(f"Final result - Success: {result.success}, Status: {result.status_code}")
         return result
         
     except RequestException as e:
-        logger.error(f"Request exception: {str(e)}")
+        logger.error(f"🚨 NETWORK ERROR - Failed to reach RLM API: {str(e)}")
         raise HTTPException(
             status_code=500,
             detail=f"Error making request to RLM API: {str(e)}"
