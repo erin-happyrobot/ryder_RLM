@@ -55,18 +55,28 @@ class ScheduleResponse(BaseModel):
 
 def transform_questions(questions_json_string: str) -> list:
     """Transform JSON string of questions to required API format"""
-    try:
-        questions_dict = json.loads(questions_json_string)
-    except json.JSONDecodeError:
-        return []
+    # Handle null or empty questions
+    if not questions_json_string or questions_json_string.strip() == "":
+        questions_dict = {}
+    else:
+        try:
+            questions_dict = json.loads(questions_json_string)
+        except json.JSONDecodeError:
+            questions_dict = {}
+    
+    # If questions_dict is empty, create entries for all questions with "NA"
+    if not questions_dict:
+        questions_dict = {"1": "NA", "2": "NA", "3": "NA", "4": "NA", "5": "NA"}
     
     transformed = []
     for key, response in questions_dict.items():
         if key in QUESTION_MAPPING:
+            # Use "NA" if response is empty or null
+            final_response = response if response else "NA"
             transformed.append({
                 "questionDescription": QUESTION_MAPPING[key]["questionDescription"],
                 "questionId": QUESTION_MAPPING[key]["questionId"],
-                "questionResponse": response.lower()
+                "questionResponse": final_response.lower()
             })
     return transformed
 
