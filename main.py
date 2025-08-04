@@ -50,10 +50,10 @@ async def schedule_appointment(request: ScheduleRequest):
             detail="API_HEADER_KEY not found in environment variables. Please check your .env file."
         )
     
-    # Prepare headers (assuming it's an Authorization header, but you can modify as needed)
+    # Prepare headers (using subscription key instead of Authorization)
     headers = {
         "Content-Type": "application/json",
-        "Authorization": api_header_value,  # Modify this header name as needed
+        "Ocp-Apim-Subscription-Key": api_header_value,  # Common subscription key header name
     }
     
     # Prepare request body using values from incoming payload
@@ -111,7 +111,7 @@ async def schedule_appointment_custom(payload: dict):
     # Prepare headers
     headers = {
         "Content-Type": "application/json",
-        "Authorization": api_header_value,  # Modify this header name as needed
+        "Ocp-Apim-Subscription-Key": api_header_value,  # Common subscription key header name
     }
     
     try:
