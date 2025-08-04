@@ -45,7 +45,7 @@ class ScheduleRequest(BaseModel):
     phoneNumber: str
     aiConsent: str
     consentDateTime: str
-    questions_and_answers: str  # JSON string of question numbers to Y/N responses
+    questions: str  # JSON string of question numbers to Y/N responses
 
 class ScheduleResponse(BaseModel):
     success: bool
@@ -98,7 +98,7 @@ async def schedule_appointment(request: ScheduleRequest):
     }
     
     # Transform questions from dict to required format
-    transformed_questions = transform_questions(request.questions_and_answers)
+    transformed_questions = transform_questions(request.questions)
     
     # Prepare request body using values from incoming payload
     payload = {
