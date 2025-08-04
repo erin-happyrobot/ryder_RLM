@@ -92,6 +92,11 @@ def transform_consent_datetime(datetime_string: str) -> str:
     from datetime import datetime
     import re
     
+    # Handle null, empty, or "null" cases
+    if not datetime_string or datetime_string.strip() == "" or datetime_string.lower() == "null":
+        # Return current datetime in ISO format as default
+        return datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
+    
     # If it's already in ISO format, return as is
     iso_pattern = r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$'
     if re.match(iso_pattern, datetime_string):
@@ -113,8 +118,8 @@ def transform_consent_datetime(datetime_string: str) -> str:
             dt = datetime.fromisoformat(datetime_string.replace('Z', '+00:00'))
             return dt.strftime('%Y-%m-%dT%H:%M:%S')
         except:
-            # Default fallback
-            return datetime_string
+            # Default fallback to current datetime
+            return datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
 
 @app.get("/")
 async def root():
