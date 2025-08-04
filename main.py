@@ -116,15 +116,19 @@ def transform_schedule_date(date_string: str) -> str:
     from datetime import datetime
     import re
     
+    logger.info(f"Schedule date input: '{date_string}'")
+    
     # Handle null, empty, or "null" cases
     cleaned_date = handle_null_or_empty(date_string, "")
     if cleaned_date == "":
-        # Return current date as default
-        return datetime.now().strftime('%Y-%m-%d')
+        result = datetime.now().strftime('%Y-%m-%d')
+        logger.info(f"Schedule date was empty, using current date: '{result}'")
+        return result
     
     # If it's already in correct format, return as is
     date_pattern = r'^\d{4}-\d{2}-\d{2}$'
     if re.match(date_pattern, cleaned_date):
+        logger.info(f"Schedule date already in correct format: '{cleaned_date}'")
         return cleaned_date
     
     # Try to parse common date formats
@@ -133,15 +137,21 @@ def transform_schedule_date(date_string: str) -> str:
         for fmt in ['%Y-%m-%d', '%m/%d/%Y', '%d/%m/%Y', '%Y/%m/%d', '%B %d, %Y', '%d %B %Y']:
             try:
                 dt = datetime.strptime(cleaned_date, fmt)
-                return dt.strftime('%Y-%m-%d')
+                result = dt.strftime('%Y-%m-%d')
+                logger.info(f"Schedule date transformed from '{cleaned_date}' to '{result}' using format '{fmt}'")
+                return result
             except ValueError:
                 continue
         
         # If no format worked, return current date
-        return datetime.now().strftime('%Y-%m-%d')
+        result = datetime.now().strftime('%Y-%m-%d')
+        logger.warning(f"Could not parse schedule date '{cleaned_date}', using current date: '{result}'")
+        return result
     except:
         # Default fallback to current date
-        return datetime.now().strftime('%Y-%m-%d')
+        result = datetime.now().strftime('%Y-%m-%d')
+        logger.error(f"Error parsing schedule date '{cleaned_date}', using current date: '{result}'")
+        return result
 
 @app.get("/")
 async def root():
