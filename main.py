@@ -41,31 +41,39 @@ def handle_null_or_empty(value: str, default: str = "") -> str:
     return value
 
 def transform_questions(questions_json_string: str) -> list:
-    """Transform JSON string of questions to required API format"""
+    """Transform JSON string of questions to required API format - handles variable number of questions"""
     # Handle null or empty questions
     if not questions_json_string or questions_json_string.strip() == "":
-        return []  # Return empty list if no questions provided
-    else:
-        try:
-            questions_dict = json.loads(questions_json_string)
-        except json.JSONDecodeError:
-            return []  # Return empty list if JSON parsing fails
-    
-    # If questions_dict is empty, return empty list
-    if not questions_dict:
+        logger.info("No questions provided, returning empty list")
         return []
     
+    try:
+        questions_dict = json.loads(questions_json_string)
+    except json.JSONDecodeError:
+        logger.warning("Failed to parse questions JSON, returning empty list")
+        return []
+    
+    if not questions_dict:
+        logger.info("Questions dict is empty, returning empty list")
+        return []
+    
+    # Create questions with sequential IDs
     transformed = []
-    question_id = 1  # Start with ID 1 and increment
+    question_id = 1
+    
     for question_text, response in questions_dict.items():
         # Use "na" if response is empty or null
         final_response = response if response else "na"
+        
         transformed.append({
             "questionDescription": question_text,
             "questionId": question_id,
             "questionResponse": final_response.lower()
         })
-        question_id += 1  # Increment for next question
+        
+        question_id += 1
+    
+    logger.info(f"Created {len(transformed)} questions for API with IDs 1-{len(transformed)}")
     return transformed
 
 def transform_ai_consent(consent_value: str) -> str:
