@@ -28,6 +28,10 @@ class ScheduleRequest(BaseModel):
     consentDateTime: str
     questions: str  # JSON string of question numbers to Y/N responses
 
+class AvailableDatesRequest(BaseModel):
+    clientCode: str
+    clientOrderNumber: str
+
 class ScheduleResponse(BaseModel):
     success: bool
     status_code: int
@@ -178,11 +182,126 @@ def transform_schedule_date(date_string: str) -> str:
         logger.error(f"Error parsing schedule date '{cleaned_date}', using current date: '{result}'")
         return result
 
+def fetch_available_dates_and_questions(client_code: str, client_order_number: str) -> Optional[dict]:
+    """Fetch available dates and questions from the API"""
+    url = "https://apiqa.ryder.com/rlm/ryderview/capacitymanagement/api/ScheduleAppointment/AvailableDates"
+    
+    # Get header from environment variable
+    api_header_value = os.getenv("API_HEADER_VALUE")
+    if not api_header_value:
+        logger.error("API_HEADER_VALUE not found for available dates request")
+        return None
+    
+    headers = {
+        "Content-Type": "application/json",
+        "Ocp-Apim-Subscription-Key": api_header_value,
+    }
+    
+    payload = {
+        "clientCode": client_code,
+        "clientOrderNumber": client_order_number
+    }
+    
+    try:
+        logger.info(f"Fetching available dates and questions for order: {client_order_number}")
+        response = requests.post(url, json=payload, headers=headers, timeout=30)
+        
+        if response.status_code == 200:
+            data = response.json()
+            logger.info(f"Successfully fetched {len(data.get('questions', []))} questions from API")
+            return data
+        else:
+            logger.error(f"Failed to fetch available dates: {response.status_code} - {response.text}")
+            return None
+            
+    except RequestException as e:
+        logger.error(f"Error fetching available dates: {str(e)}")
+        return None
+
 @app.get("/")
 async def root():
     """Health check endpoint"""
     logger.info("Health check endpoint hit")
     return {"message": "RLM API Server is running"}
+
+@app.get("/test")
+async def test():
+    """Simple test endpoint"""
+    logger.info("Test endpoint hit")
+    return {"status": "ok", "message": "Railway deployment is working"}
+
+@app.post("/available-dates")
+async def get_available_dates(request: AvailableDatesRequest):
+    """Get available dates and questions from RLM API"""
+    logger.info(f"Available dates request for order: {request.clientOrderNumber}")
+    
+    data = fetch_available_dates_and_questions(request.clientCode, request.clientOrderNumber)
+    
+    if data:
+        return {
+            "success": True,
+            "availableDates": data.get("availableDates", []),
+            "questions": data.get("questions", [])
+        }
+    else:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to fetch available dates and questions"
+        )
+
+def transform_questions_with_api_match(questions_json_string: str, api_questions: list) -> list:
+    """Transform questions matching against API questions by order"""
+    # Handle null or empty questions
+    if not questions_json_string or questions_json_string.strip() == "":
+        logger.info("No questions provided, using API questions with empty responses")
+        # Return API questions with empty responses
+        return [{
+            "questionDescription": q["questionDescription"],
+            "questionId": q["questionId"],
+            "questionResponse": ""
+        } for q in api_questions]
+    
+    try:
+        user_questions_dict = json.loads(questions_json_string)
+    except json.JSONDecodeError:
+        logger.warning("Failed to parse questions JSON, using API questions with empty responses")
+        return [{
+            "questionDescription": q["questionDescription"],
+            "questionId": q["questionId"],
+            "questionResponse": ""
+        } for q in api_questions]
+    
+    if not user_questions_dict:
+        logger.info("Questions dict is empty, using API questions with empty responses")
+        return [{
+            "questionDescription": q["questionDescription"],
+            "questionId": q["questionId"],
+            "questionResponse": ""
+        } for q in api_questions]
+    
+    # Convert user questions to a list to match by order
+    user_questions_list = list(user_questions_dict.items())
+    transformed = []
+    
+    for i, api_question in enumerate(api_questions):
+        if i < len(user_questions_list):
+            # Use user's response for this position
+            user_question_text, user_response = user_questions_list[i]
+            final_response = user_response if user_response else "na"
+            logger.info(f"Question {i+1}: Using user response '{final_response}' for API question")
+        else:
+            # No user response for this position
+            final_response = "na"
+            logger.info(f"Question {i+1}: No user response, using 'na'")
+        
+        transformed.append({
+            "questionDescription": api_question["questionDescription"],
+            "questionId": api_question["questionId"],
+            "questionResponse": final_response.lower()
+        })
+    
+    logger.info(f"Matched {len(transformed)} questions with API questions")
+    return transformed
 
 @app.post("/schedule-appointment", response_model=ScheduleResponse)
 async def schedule_appointment(request: ScheduleRequest):
@@ -193,6 +312,18 @@ async def schedule_appointment(request: ScheduleRequest):
     logger.info(f"Schedule Date: {request.scheduledDate}")
     logger.info(f"Client Order Number: {request.clientOrderNumber}")
     logger.info(f"Client Code: {request.clientCode}")
+    
+    # First, fetch the available dates and questions to get the correct question format
+    api_data = fetch_available_dates_and_questions(request.clientCode, request.clientOrderNumber)
+    if not api_data or "questions" not in api_data:
+        logger.error("Failed to fetch API questions, cannot proceed with scheduling")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to fetch required questions from API"
+        )
+    
+    api_questions = api_data["questions"]
+    logger.info(f"Fetched {len(api_questions)} questions from API")
     
     # API endpoint
     url = "https://apiqa.ryder.com/rlm/ryderview/capacitymanagement/api/ScheduleAppointment/AIScheduleConfirmation"
@@ -212,9 +343,9 @@ async def schedule_appointment(request: ScheduleRequest):
         "Ocp-Apim-Subscription-Key": api_header_value,  # Common subscription key header name
     }
     
-    # Transform questions from dict to required format
-    transformed_questions = transform_questions(request.questions)
-    logger.info(f"Transformed {len(transformed_questions)} questions")
+    # Transform questions using API questions as the template
+    transformed_questions = transform_questions_with_api_match(request.questions, api_questions)
+    logger.info(f"Transformed {len(transformed_questions)} questions using API template")
     
     # Prepare request body using values from incoming payload
     payload = {
