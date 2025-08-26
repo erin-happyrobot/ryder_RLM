@@ -185,7 +185,7 @@ def transform_schedule_date(date_string: str) -> str:
 
 def fetch_available_dates_and_questions(client_code: str, client_order_number: str) -> Optional[dict]:
     """Fetch available dates and questions from the API"""
-    url = "https://apiqa.ryder.com/rlm/ryderview/capacitymanagement/api/ScheduleAppointment/AvailableDates"
+    url = "https://apistg.ryder.com/rlm/ryderview/capacitymanagement/api/ScheduleAppointment/AvailableDates"
     
     # Get header from environment variable
     api_header_value = os.getenv("API_HEADER_VALUE")
@@ -327,7 +327,7 @@ async def schedule_appointment(request: ScheduleRequest):
     logger.info(f"Fetched {len(api_questions)} questions from API")
     
     # API endpoint
-    url = "https://apiqa.ryder.com/rlm/ryderview/capacitymanagement/api/ScheduleAppointment/AIUpdateQuestionnaireResponse"
+    url = "https://apistg.ryder.com/rlm/ryderview/capacitymanagement/api/ScheduleAppointment/AIUpdateQuestionnaireResponse"
     
     # Get header from environment variable
     api_header_value = os.getenv("API_HEADER_VALUE")
@@ -414,7 +414,7 @@ async def schedule_appointment_custom(payload: dict):
     Make a POST request with custom payload to the RLM API endpoint
     """
     # API endpoint
-    url = "https://apiqa.ryder.com/rlm/ryderview/capacitymanagement/api/ScheduleAppointment/AIScheduleConfirmation"
+    url = "https://apistg.ryder.com/rlm/ryderview/capacitymanagement/api/ScheduleAppointment/AIScheduleConfirmation"
     
     # Get header from environment variable
     api_header_value = os.getenv("API_HEADER_KEY")
