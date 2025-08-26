@@ -27,6 +27,7 @@ class ScheduleRequest(BaseModel):
     aiConsent: str
     consentDateTime: str
     questions: str  # JSON string of question numbers to Y/N responses
+    groupId: Optional[str] = None
 
 class AvailableDatesRequest(BaseModel):
     clientCode: str
@@ -326,7 +327,7 @@ async def schedule_appointment(request: ScheduleRequest):
     logger.info(f"Fetched {len(api_questions)} questions from API")
     
     # API endpoint
-    url = "https://apiqa.ryder.com/rlm/ryderview/capacitymanagement/api/ScheduleAppointment/AIScheduleConfirmation"
+    url = "https://apiqa.ryder.com/rlm/ryderview/capacitymanagement/api/ScheduleAppointment/AIUpdateQuestionnaireResponse"
     
     # Get header from environment variable
     api_header_value = os.getenv("API_HEADER_VALUE")
@@ -358,6 +359,10 @@ async def schedule_appointment(request: ScheduleRequest):
         "consentDateTime": transform_consent_datetime(request.consentDateTime),
         "questions": transformed_questions
     }
+    # Include groupId if provided
+    clean_group = handle_null_or_empty(request.groupId, "") if request.groupId is not None else ""
+    if clean_group != "":
+        payload["groupId"] = clean_group
     
     logger.info(f"Final payload scheduled date (date only, no time): {payload['scheduledDate']}")
     logger.info(f"Final payload consent datetime (with time): {payload['consentDateTime']}")
