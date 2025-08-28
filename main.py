@@ -313,18 +313,22 @@ async def schedule_appointment(request: ScheduleRequest):
     logger.info(f"Schedule Date: {request.scheduledDate}")
     logger.info(f"Client Order Number: {request.clientOrderNumber}")
     logger.info(f"Client Code: {request.clientCode}")
+
+    ##### took this out because we are not using the API questions right now
     
-    # First, fetch the available dates and questions to get the correct question format
-    api_data = fetch_available_dates_and_questions(request.clientCode, request.clientOrderNumber)
-    if not api_data or "questions" not in api_data:
-        logger.error("Failed to fetch API questions, cannot proceed with scheduling")
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to fetch required questions from API"
-        )
+    # # First, fetch the available dates and questions to get the correct question format
+    # api_data = fetch_available_dates_and_questions(request.clientCode, request.clientOrderNumber)
+    # if not api_data or "questions" not in api_data:
+    #     logger.error("Failed to fetch API questions, cannot proceed with scheduling")
+    #     raise HTTPException(
+    #         status_code=500,
+    #         detail="Failed to fetch required questions from API"
+    #     )
     
-    api_questions = api_data["questions"]
-    logger.info(f"Fetched {len(api_questions)} questions from API")
+    # api_questions = api_data["questions"]
+    # logger.info(f"Fetched {len(api_questions)} questions from API")
+
+    ######
     
     # API endpoint
     url = "https://apistg.ryder.com/rlm/ryderview/capacitymanagement/api/ScheduleAppointment/AIUpdateQuestionnaireResponse"
@@ -345,7 +349,11 @@ async def schedule_appointment(request: ScheduleRequest):
     }
     
     # Transform questions using API questions as the template
-    transformed_questions = transform_questions_with_api_match(request.questions, api_questions)
+    # transformed_questions = transform_questions_with_api_match(request.questions, api_questions)
+
+    # transformed questions is the same as questions from incoming payload
+    transformed_questions = request.questions
+
     logger.info(f"Transformed {len(transformed_questions)} questions using API template")
     
     # Prepare request body using values from incoming payload
