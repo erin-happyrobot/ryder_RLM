@@ -28,6 +28,7 @@ class ScheduleRequest(BaseModel):
     consentDateTime: str
     questions: str  # JSON string of question numbers to Y/N responses
     groupId: Optional[str] = None
+    real_questions: Optional[str] = None
 
 class AvailableDatesRequest(BaseModel):
     clientCode: str
@@ -329,6 +330,10 @@ async def schedule_appointment(request: ScheduleRequest):
     # logger.info(f"Fetched {len(api_questions)} questions from API")
 
     ######
+    if request.real_questions:
+        api_questions = json.loads(request.real_questions)
+    else:
+        api_questions = []
     
     # API endpoint
     url = "https://apistg.ryder.com/rlm/ryderview/capacitymanagement/api/ScheduleAppointment/AIUpdateQuestionnaireResponse"
@@ -349,10 +354,8 @@ async def schedule_appointment(request: ScheduleRequest):
     }
     
     # Transform questions using API questions as the template
-    # transformed_questions = transform_questions_with_api_match(request.questions, api_questions)
+    transformed_questions = transform_questions_with_api_match(request.questions, api_questions)
 
-    # transformed questions is the same as questions from incoming payload
-    transformed_questions = request.questions
 
     logger.info(f"Transformed {len(transformed_questions)} questions using API template")
     
