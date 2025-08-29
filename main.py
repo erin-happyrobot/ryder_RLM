@@ -293,7 +293,7 @@ def transform_questions_with_api_match(questions_json_string: str, api_questions
             logger.info(f"Question {i+1}: Using user response '{final_response}' for API question")
         else:
             # No user response for this position
-            final_response = "N"
+            final_response = "na"
             logger.info(f"Question {i+1}: No user response, using 'na'")
         
         transformed.append({
