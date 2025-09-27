@@ -428,11 +428,11 @@ async def schedule_appointment_custom(payload: dict):
     url = "https://api.ryder.com/rlm/ryderview/capacitymanagement/api/ScheduleAppointment/AIScheduleConfirmation"
     
     # Get header from environment variable
-    api_header_value = os.getenv("API_HEADER_KEY")
+    api_header_value = os.getenv("API_HEADER_VALUE")
     if not api_header_value:
         raise HTTPException(
             status_code=500, 
-            detail="API_HEADER_KEY not found in environment variables. Please check your .env file."
+            detail="API_HEADER_VALUE not found in environment variables. Please check your .env file."
         )
     
     # Prepare headers
