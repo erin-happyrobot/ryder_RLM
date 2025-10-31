@@ -29,10 +29,12 @@ class ScheduleRequest(BaseModel):
     questions: str  # JSON string of question numbers to Y/N responses
     groupId: Optional[str] = None
     real_questions: Optional[str] = None
+    environment: Optional[str] = None
 
 class AvailableDatesRequest(BaseModel):
     clientCode: str
     clientOrderNumber: str
+    environment: Optional[str] = None
 
 class ScheduleResponse(BaseModel):
     success: bool
@@ -184,9 +186,16 @@ def transform_schedule_date(date_string: str) -> str:
         logger.error(f"Error parsing schedule date '{cleaned_date}', using current date: '{result}'")
         return result
 
-def fetch_available_dates_and_questions(client_code: str, client_order_number: str) -> Optional[dict]:
+def fetch_available_dates_and_questions(client_code: str, client_order_number: str, environment: Optional[str] = None) -> Optional[dict]:
     """Fetch available dates and questions from the API"""
-    url = "https://api.ryder.com/rlm/ryderview/capacitymanagement/api/ScheduleAppointment/AvailableDates"
+    # Use staging URL if environment is provided
+    base_url = "https://apistg.ryder.com" if environment else "https://api.ryder.com"
+    url = f"{base_url}/rlm/ryderview/capacitymanagement/api/ScheduleAppointment/AvailableDates"
+    
+    if environment:
+        logger.info(f"Using staging environment for available dates: {base_url}")
+    else:
+        logger.info(f"Using production environment for available dates: {base_url}")
     
     # Get header from environment variable
     api_header_value = os.getenv("API_HEADER_VALUE")
@@ -204,7 +213,7 @@ def fetch_available_dates_and_questions(client_code: str, client_order_number: s
         "clientOrderNumber": client_order_number
     }
     
-    try:
+    try: 
         logger.info(f"Fetching available dates and questions for order: {client_order_number}")
         response = requests.post(url, json=payload, headers=headers, timeout=30)
         
@@ -237,7 +246,7 @@ async def get_available_dates(request: AvailableDatesRequest):
     """Get available dates and questions from RLM API"""
     logger.info(f"Available dates request for order: {request.clientOrderNumber}")
     
-    data = fetch_available_dates_and_questions(request.clientCode, request.clientOrderNumber)
+    data = fetch_available_dates_and_questions(request.clientCode, request.clientOrderNumber, request.environment)
     
     if data:
         return {
@@ -335,8 +344,14 @@ async def schedule_appointment(request: ScheduleRequest):
     else:
         api_questions = []
     
-    # API endpoint
-    url = "https://api.ryder.com/rlm/ryderview/capacitymanagement/api/ScheduleAppointment/AIUpdateQuestionnaireResponse"
+    # API endpoint - use staging URL if environment is provided
+    base_url = "https://apistg.ryder.com" if request.environment else "https://api.ryder.com"
+    url = f"{base_url}/rlm/ryderview/capacitymanagement/api/ScheduleAppointment/AIUpdateQuestionnaireResponse"
+    
+    if request.environment:
+        logger.info(f"Using staging environment: {base_url}")
+    else:
+        logger.info(f"Using production environment: {base_url}")
     
     # Get header from environment variable
     api_header_value = os.getenv("API_HEADER_VALUE")
@@ -356,8 +371,16 @@ async def schedule_appointment(request: ScheduleRequest):
     # Transform questions using API questions as the template
     transformed_questions = transform_questions_with_api_match(request.questions, api_questions)
 
-
-    logger.info(f"Transformed {len(transformed_questions)} questions using API template")
+    # Log question details before sending
+    logger.info(f"📋 Question Summary:")
+    logger.info(f"   - API questions template count: {len(api_questions)}")
+    api_question_ids = [q.get("questionId") for q in api_questions] if api_questions else []
+    if api_question_ids:
+        logger.info(f"   - API question IDs: {api_question_ids}")
+    logger.info(f"   - Transformed questions count: {len(transformed_questions)}")
+    transformed_question_ids = [q.get("questionId") for q in transformed_questions] if transformed_questions else []
+    if transformed_question_ids:
+        logger.info(f"   - Transformed question IDs being sent: {transformed_question_ids}")
     
     # Prepare request body using values from incoming payload
     payload = {
@@ -401,6 +424,34 @@ async def schedule_appointment(request: ScheduleRequest):
             logger.error(f"❌ REQUEST FAILED - RLM API returned {response.status_code}")
             logger.error(f"Error response data: {response_data}")
             logger.error(f"Error response text: {response.text}")
+            
+            # Special handling for 422 errors about missing questions
+            if response.status_code == 422:
+                logger.error("=" * 60)
+                logger.error("🚨 422 VALIDATION ERROR - Missing Questions Detected")
+                logger.error("=" * 60)
+                
+                # Extract missing question IDs from error response
+                if isinstance(response_data, dict):
+                    description = response_data.get("description", "")
+                    logger.error(f"Error description: {description}")
+                    
+                    # Check if description mentions questionIds
+                    if "questionIds" in description:
+                        logger.error(f"📌 Questions sent to API: {len(transformed_questions)} questions")
+                        logger.error(f"   Question IDs sent: {transformed_question_ids}")
+                        logger.error(f"📌 Questions in template (real_questions): {len(api_questions)} questions")
+                        logger.error(f"   Question IDs in template: {api_question_ids}")
+                        # Safely count user questions
+                        try:
+                            user_q_count = len(json.loads(request.questions)) if request.questions else 0
+                            logger.error(f"📌 Questions in user payload: {user_q_count} responses")
+                        except (json.JSONDecodeError, TypeError):
+                            logger.error(f"📌 Questions in user payload: Unable to parse")
+                        logger.error("=" * 60)
+                        logger.error("💡 SUGGESTION: The API expects more questions than were provided.")
+                        logger.error("   Ensure real_questions contains ALL questions that the API expects.")
+                        logger.error("=" * 60)
         
         result = ScheduleResponse(
             success=is_successful,
@@ -424,8 +475,10 @@ async def schedule_appointment_custom(payload: dict):
     """
     Make a POST request with custom payload to the RLM API endpoint
     """
-    # API endpoint
-    url = "https://api.ryder.com/rlm/ryderview/capacitymanagement/api/ScheduleAppointment/AIScheduleConfirmation"
+    # API endpoint - use staging URL if environment is provided in payload
+    environment = payload.get("environment")
+    base_url = "https://apistg.ryder.com" if environment else "https://api.ryder.com"
+    url = f"{base_url}/rlm/ryderview/capacitymanagement/api/ScheduleAppointment/AIScheduleConfirmation"
     
     # Get header from environment variable
     api_header_value = os.getenv("API_HEADER_VALUE")
@@ -436,6 +489,7 @@ async def schedule_appointment_custom(payload: dict):
         )
     
     # Prepare headers
+    # HERE not configured right
     headers = {
         "Content-Type": "application/json",
         "Ocp-Apim-Subscription-Key": api_header_value,  # Common subscription key header name
